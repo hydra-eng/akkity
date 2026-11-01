@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+build/
+dist/
+releases/
+runtime/
+models/
+*.spec
+*.log
+settings.json
+chats.json
+node_modules/
+.firebase/
+test-data/

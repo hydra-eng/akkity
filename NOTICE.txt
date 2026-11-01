@@ -1,0 +1,15 @@
+Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms
+
+Akkity includes the Gemma 3 1B instruction model, quantized by the upstream
+Ollama distribution (gemma3:1b), without further modification by Akkity.
+SHA256: 2f8c3d137f2496dcb4019e17a50f2974b89c1be1a742db3c80cc86f91cafeeef
+Source: https://registry.ollama.ai/v2/library/gemma3/manifests/1b
+The Gemma Terms of Use and Prohibited Use Policy are included in licenses/.
+
+CPU inference uses the llama.cpp runtime distributed with Ollama v0.40.13.
+Runtime license files are retained in runtime/lib/ollama/.
+Python, Tcl/Tk, Pillow, pypdf, pystray and their dependencies retain their
+respective third-party licenses. See licenses/ and _internal/.
+
+Akkity is an independent community project, not endorsed by Google,
+Ollama, Microsoft or OpenAI. Pet artwork was AI-generated from a user brief.
