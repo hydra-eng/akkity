@@ -248,7 +248,7 @@ class Akkity:
         self.bubble_id=shell.create_image(0,0,image=self.bubble_image,anchor='nw')
         content=tk.Frame(shell,bg='#202020')
         self.bubble_content=shell
-        self.bubble_window=shell.create_window(13,12,window=content,anchor='nw',width=w-36,height=h-52)
+        self.bubble_window=shell.create_window(13,12,window=content,anchor='nw',width=w-68,height=h-66)
         content.columnconfigure(0,weight=1)
         content.rowconfigure(1,weight=1)
         header=tk.Frame(content,bg='#202020')
@@ -294,11 +294,13 @@ class Akkity:
         self.remove_file_button=tk.Button(composer,text='×',command=self.remove_attachment,bg='#303030',fg='#aaaaaa',bd=0,font=('Segoe UI',10))
         self.remove_file_button.grid(row=1,column=2,sticky='e',padx=4)
         self.remove_file_button.grid_remove()
-        self.resize_handle=tk.Label(shell,text='◢',bg='#202020',fg='#9a9a9a',cursor='size_nw_se',font=('Segoe UI',10))
-        self.resize_id=shell.create_window(w-20,h-36,window=self.resize_handle,anchor='center')
+        self.resize_handle=tk.Label(shell,text='◢',bg='#35442e',fg='#d8f2ad',cursor='size_nw_se',font=('Segoe UI',13,'bold'),width=3,height=1)
+        self.resize_id=shell.create_window(w-20,h-38,window=self.resize_handle,anchor='center')
         self.resize_handle.bind('<ButtonPress-1>',self.resize_start)
         self.resize_handle.bind('<B1-Motion>',self.resize_drag)
         self.resize_handle.bind('<ButtonRelease-1>',self.resize_end)
+        self.dialog.bind('<B1-Motion>',self.resize_drag,add='+')
+        self.dialog.bind('<ButtonRelease-1>',self.resize_end,add='+')
         self.dialog.bind('<Control-o>',lambda e:self.attach_file())
         self.dialog.bind('<Control-f>',lambda e:self.find_chat())
         self.dialog.bind('<Control-comma>',lambda e:self.settings())
@@ -385,14 +387,13 @@ class Akkity:
         self.dialog.geometry(f'{w}x{h}+{self.dialog.winfo_x()}+{self.dialog.winfo_y()}')
         self.bubble_image=self.make_bubble(w,h)
         self.bubble_canvas.itemconfigure(self.bubble_id,image=self.bubble_image)
-        self.bubble_content.itemconfigure(self.bubble_window,width=w-36,height=h-52)
-        self.bubble_canvas.coords(self.resize_id,w-20,h-36)
+        self.bubble_content.itemconfigure(self.bubble_window,width=w-68,height=h-66)
+        self.bubble_canvas.coords(self.resize_id,w-20,h-38)
         self.file_label.configure(wraplength=w-115)
-        self.resize_handle.configure(text=f'◢ {w}×{h}')
-        self.position_chat()
 
     def resize_end(self,event):
-        if hasattr(self,'resize_origin'):del self.resize_origin
+        if not hasattr(self,'resize_origin'):return
+        del self.resize_origin
         self.write_json('settings.json',self.config)
 
     def make_bubble(self,w,h):
@@ -478,7 +479,8 @@ class Akkity:
         def care_action(action):
             self.care(action);stats.configure(text=f"Virtual treats: {self.pet_state['treats']}  ·  Playtimes: {self.pet_state['playtimes']}")
         for title,action in [('♡ Give a virtual treat','treat'),('✳ Start playtime','play'),('☾ Nap for 5 minutes','nap'),('☀ Wake up','wake')]:ttk.Button(care,text=title,command=lambda a=action:care_action(a)).pack(fill='x',pady=8)
-        ttk.Label(care,text='Nap pauses automatic antics for five minutes.\nTreat and play counters stay on this computer.\nCtrl+Alt+A brings your cat back after hiding.',wraplength=350).pack(anchor='w',pady=15)
+        reopen=self.desktop.shortcut_text+' or the tray menu' if self.desktop else 'Ctrl+Alt+A or the tray menu'
+        ttk.Label(care,text='Nap pauses automatic antics for five minutes.\nTreat and play counters stay on this computer.\nReopen Akkity with '+reopen+'.',wraplength=350).pack(anchor='w',pady=15)
         variables={}
         for row,(key,label,low,high) in enumerate([('interval','Random action interval (seconds)',1,60),('speed','Walking speed (pixels/second)',10,180),('frame_ms','Frame interval (ms)',60,220),('font','Chat font size',9,15),('bubble_width','Bubble width',260,480),('bubble_height','Bubble height',200,440)]):
             ttk.Label(prefs,text=label).grid(row=row,column=0,sticky='w',pady=7)
@@ -487,7 +489,8 @@ class Akkity:
             variables[key]=tk.BooleanVar(value=self.config[key]);ttk.Checkbutton(prefs,text=label,variable=variables[key]).grid(row=row,columnspan=2,sticky='w',pady=6)
         for row,key,label in [(8,'double','Double tap'),(9,'triple','Triple tap')]:
             ttk.Label(prefs,text=label).grid(row=row,column=0,sticky='w');variables[key]=tk.StringVar(value=self.config[key]);ttk.Combobox(prefs,textvariable=variables[key],values=['jump','wave','left','right','review','special'],state='readonly',width=12).grid(row=row,column=1,pady=5)
-        status=ttk.Label(prefs,text='Chats are saved locally on this computer.');status.grid(row=10,columnspan=2,pady=8)
+        reopen=self.desktop.shortcut_text+' or the tray menu' if self.desktop else 'Ctrl+Alt+A or the tray menu'
+        status=ttk.Label(prefs,text=f'Chats stay on this computer · Reopen with {reopen}.');status.grid(row=10,columnspan=2,pady=8)
         def apply():
             try:
                 values={k:v.get() for k,v in variables.items()}

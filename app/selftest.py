@@ -2,6 +2,7 @@
 import json,os,tempfile,time
 from pathlib import Path
 from unittest.mock import patch
+from desktop import register_hotkeys
 
 def run(report_path):
     os.environ['AKKITY_TEST']='1'
@@ -13,6 +14,12 @@ def run(report_path):
         a=app_module.Akkity()
         checks={}
         try:
+            class FakeUser32:
+                def __init__(self):self.calls=[]
+                def RegisterHotKey(self,window,identifier,modifiers,key):
+                    self.calls.append((identifier,modifiers,key));return identifier==2
+            fake=FakeUser32()
+            checks['shortcut_conflict_fallback']=register_hotkeys(fake)==[(2,'Ctrl+Alt+Shift+A')] and [call[0] for call in fake.calls]==[1,2]
             a.root.update()
             checks['interpolated_motion']=a.subframes==6 and len(a.animations['right'])==48
             a.chat();a.root.update()
@@ -46,11 +53,13 @@ def run(report_path):
             checks['reply_text']=response
             a.close_chat();a.config.update(bubble_width=300,bubble_height=240);a.chat();a.root.update()
             checks['fresh_chat']=len(a.messages)==2
+            position=(a.dialog.winfo_x(),a.dialog.winfo_y())
             event=type('ResizeEvent',(),{'x_root':10,'y_root':10})()
             a.resize_start(event)
             event=type('ResizeEvent',(),{'x_root':30,'y_root':55})()
             a.resize_drag(event);a.resize_end(event);a.root.update()
-            checks['resize']=a.config['bubble_width']==320 and a.config['bubble_height']==285 and a.resize_handle.cget('text')=='◢ 320×285'
+            checks['resize']=a.config['bubble_width']==320 and a.config['bubble_height']==285 and a.resize_handle.winfo_width()>=24
+            checks['resize_drag_anchor']=tuple(map(int,a.bubble_canvas.coords(a.resize_id)))==(300,247) and (a.dialog.winfo_x(),a.dialog.winfo_y())==position
             a.close_chat()
             a.focus_ui.start(1,'Test focus')
             a.focus_ui.toggle();checks['focus_pause']=a.focus.state=='paused' and a.focus.task=='Test focus'

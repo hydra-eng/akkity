@@ -5,10 +5,22 @@ import threading
 import pystray
 from PIL import Image
 
+HOTKEY_CANDIDATES=((1,0x4003,'Ctrl+Alt+A'),(2,0x4007,'Ctrl+Alt+Shift+A'))
+
+def register_hotkeys(user32):
+    """Use the requested shortcut, with a fallback if another app owns it."""
+    registered=[]
+    for identifier,modifiers,label in HOTKEY_CANDIDATES:
+        if user32.RegisterHotKey(None,identifier,modifiers,ord('A')):
+            registered.append((identifier,label))
+            if identifier==1:break
+    return registered
+
 class Desktop:
     def __init__(self, app, icon):
         self.app=app
         self.commands=app.desktop_commands
+        self.shortcut_text='Ctrl+Alt+A'
         self.icon=pystray.Icon('Akkity',Image.open(icon),'Akkity · Ctrl+Alt+A to reopen',pystray.Menu(
             pystray.MenuItem('Open Akkity',lambda:self.commands.put('show'),default=True),
             pystray.MenuItem('Chat',lambda:self.commands.put('chat')),
@@ -26,13 +38,22 @@ class Desktop:
     def hotkey(self):
         self.thread_id=ctypes.windll.kernel32.GetCurrentThreadId()
         user32=ctypes.windll.user32
-        # MOD_ALT | MOD_CONTROL | MOD_NOREPEAT
-        if not user32.RegisterHotKey(None,1,0x4003,ord('A')):return
+        self.registered_hotkeys=register_hotkeys(user32)
+        if self.registered_hotkeys:
+            labels=' or '.join(label for _,label in self.registered_hotkeys)
+            self.shortcut_text=labels
+            self.icon.title=f'Akkity · Reopen with {labels}'
+            if self.registered_hotkeys[0][0]!=1:self.notify(f'Ctrl+Alt+A is already in use. Reopen with {labels}, or use the tray menu.')
+        else:
+            self.shortcut_text='tray menu'
+            self.icon.title='Akkity · Reopen from the tray menu'
+            self.notify('Windows could not reserve either shortcut. Reopen Akkity from the tray menu.')
         msg=wintypes.MSG()
         try:
             while user32.GetMessageW(ctypes.byref(msg),None,0,0)>0:
-                if msg.message==0x312:self.commands.put('show')
-        finally:user32.UnregisterHotKey(None,1)
+                if msg.message==0x312 and any(msg.wParam==identifier for identifier,_ in self.registered_hotkeys):self.commands.put('show')
+        finally:
+            for identifier,_ in self.registered_hotkeys:user32.UnregisterHotKey(None,identifier)
 
     def stop(self):
         self.icon.stop()

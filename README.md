@@ -35,11 +35,11 @@ Akkity is a small black cat that walks, jumps, waves, and chats beside your work
 | Drag | Move the pet |
 | Right click | Chat, settings or hide pet |
 | Close pet | Hide the pet; tray and global shortcut remain available |
-| Ctrl+Alt+A | Reopen the pet while the tray process is running |
+| Ctrl+Alt+A (or Ctrl+Alt+Shift+A if already in use) | Reopen the pet while the tray process is running |
 | Tray → Quit completely | Exit the app; reopen through its installed shortcuts |
 | Ctrl+O / Ctrl+F / Escape | Attach file / find text / close chat |
 
-Windows can reserve a shortcut for another app. If Ctrl+Alt+A is unavailable, use the tray icon or Start menu. An installed desktop shortcut also carries Ctrl+Alt+A, which Windows may use to launch the application when it is fully exited.
+Windows can reserve a shortcut for another app. Akkity tries Ctrl+Alt+Shift+A if Ctrl+Alt+A is unavailable, and shows the active shortcut in Settings. The tray icon and Start menu remain available. An installed desktop shortcut also carries Ctrl+Alt+A, which Windows may use to launch the application when it is fully exited.
 
 ## How it works
 
