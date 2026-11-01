@@ -18,5 +18,5 @@ try {
     $Installer=Get-Item releases/Akkity-Setup.exe
     $Hash=(Get-FileHash $Installer.FullName -Algorithm SHA256).Hash.ToLower()
     "$Hash  Akkity-Setup.exe" | Set-Content releases/SHA256SUMS.txt
-    @{version='1.0.4';size=('{0:N0} MB' -f ($Installer.Length/1000000));sha256=$Hash} | ConvertTo-Json | Set-Content site/release.json
+    @{version='1.0.5';size=('{0:N0} MB' -f ($Installer.Length/1000000));sha256=$Hash} | ConvertTo-Json | Set-Content site/release.json
 } finally { Pop-Location }

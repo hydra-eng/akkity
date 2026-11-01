@@ -30,6 +30,8 @@ def run(report_path):
             a.reply_count=0;styled=a.stylize_reply('Hello there! Hippo! I can help, okay?')
             checks['reply_style']=styled=='Helo, Maya! I can help, vokey?'
             a.reply_count=2;checks['occasional_oye']=a.stylize_reply('Vokey!')=='Oye, Vokey!'
+            a.reply_count=0;checks['no_repeated_enti_papa']=a.stylize_reply('enti papa. Here is the answer.')=='Here is the answer.'
+            a.reply_count=0;checks['opening_only_fallback']=a.stylize_reply('AKKITY: enti papa.')=='Helo, Maya!'
             a.entry.delete(0,'end');a.entry.insert(0,'hello');a.send()
             deadline=time.monotonic()+10
             while a.pending and time.monotonic()<deadline:a.root.update();time.sleep(.02)
