@@ -20,10 +20,20 @@ for row,(name,count) in enumerate(counts.items()):
         alpha=a[:,:,3:4].astype(np.float32)/255
         rgb=a[:,:,:3]*alpha+160*(1-alpha)
         return cv2.cvtColor(rgb.astype(np.uint8),cv2.COLOR_RGB2GRAY)
+    def normalize(frame):
+        mask=Image.fromarray(frame[:,:,3]).point(lambda a:255 if a>=128 else 0)
+        box=mask.getbbox()
+        canvas=Image.new('RGBA',(192,208))
+        canvas.paste(Image.fromarray(frame).crop(box).resize((160,176),Image.Resampling.LANCZOS),(16,16))
+        return np.array(canvas),box
     def flow(a,b):
-        return cv2.calcOpticalFlowFarneback(gray(a),gray(b),None,.5,5,25,5,7,1.5,0)
+        engine=cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+        engine.setFinestScale(0)
+        return engine.calc(gray(a),gray(b),None)
     for index,a in enumerate(frames):
-        b=frames[(index+1)%count]
+        original=a
+        a,box_a=normalize(a)
+        b,box_b=normalize(frames[(index+1)%count])
         ab,ba=flow(a,b),flow(b,a)
         # Warp premultiplied color and alpha together to avoid dark/purple fringes.
         def premul(f):
@@ -37,7 +47,18 @@ for row,(name,count) in enumerate(counts.items()):
             wb=cv2.remap(pb,xx-ba[:,:,0]*(1-t),yy-ba[:,:,1]*(1-t),cv2.INTER_LINEAR,borderMode=cv2.BORDER_CONSTANT)
             c=wa*(1-t)+wb*t
             c[:,:,:3]/=np.maximum(c[:,:,3:4],1/255)
-            out=Image.fromarray(np.clip(c*255,0,255).astype(np.uint8))
+            # Morph the silhouettes, instead of fading two separated outlines.
+            # This avoids translucent duplicate paws at larger pose changes.
+            def distance(alpha):
+                mask=(alpha>=.5).astype(np.uint8)
+                return cv2.distanceTransform(mask,cv2.DIST_L2,5)-cv2.distanceTransform(1-mask,cv2.DIST_L2,5)
+            edge=distance(wa[:,:,3])*(1-t)+distance(wb[:,:,3])*t
+            c[:,:,3]=np.clip(.5+edge/2,0,1)
+            normalized=Image.fromarray(np.clip(c*255,0,255).astype(np.uint8))
+            box=[round(x*(1-t)+y*t) for x,y in zip(box_a,box_b)]
+            out=Image.new('RGBA',(192,208))
+            out.paste(normalized.crop((16,16,176,192)).resize((box[2]-box[0],box[3]-box[1]),Image.Resampling.LANCZOS),(box[0],box[1]))
+            if k==0:out=Image.fromarray(original)
             strip.paste(out,(k*192,index*208))
     strip.save(OUT/f'{name}.png',optimize=True)
     print(name,count*steps,flush=True)

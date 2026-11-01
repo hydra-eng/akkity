@@ -1,0 +1,15 @@
+{
+  "subframes": 6,
+  "counts": {
+    "idle": 6,
+    "right": 8,
+    "left": 8,
+    "wave": 4,
+    "jump": 5,
+    "failed": 8,
+    "waiting": 6,
+    "working": 6,
+    "review": 6
+  },
+  "method": "bidirectional optical flow"
+}

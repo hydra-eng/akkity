@@ -18,6 +18,7 @@ Akkity is a small black cat that walks, jumps, waves, and chats beside your work
 | File context | Text, code, CSV, DOCX and text PDFs, extracted locally |
 | Chat tools | Summarize, explain, checklist, search, copy, export and saved history |
 | Focus timer | Pause wandering while you work, then a little celebration |
+| Cat care | Virtual treats, playtime, a five-minute quiet nap and local care counters |
 | Preferences | Idle interval, walking speed, animation cadence, font, bubble size and gestures |
 | Easy reopening | Tray icon, Ctrl+Alt+A, Start menu and desktop shortcut |
 
@@ -168,6 +169,12 @@ firebase deploy --only hosting --project akkity
 ```
 
 The website links to the GitHub release asset, keeping the large offline installer out of Firebase Hosting. No Firebase database or authentication service is used.
+
+## Validation
+
+`python scripts/test_files.py` checks text truncation, DOCX/PDF extraction, size limits and unsupported formats. A packaged app can be checked with `Akkity.exe --self-test C:\path\to\report.json`: it uses temporary chat data, checks animation availability and bubble layouts, sends a real arithmetic question to local Gemma, and verifies new-chat, hide and reopen behavior. It never uses personal chat history.
+
+The initial Windows build passed these checks. The website was checked at desktop and phone widths, including care actions, animated previews and the bubble demo. Testing was performed on Windows 11; Windows 10 compatibility is intended but has not been independently tested on a second machine.
 
 ## Licenses and credits
 

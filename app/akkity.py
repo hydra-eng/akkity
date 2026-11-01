@@ -31,6 +31,10 @@ class Akkity:
         self.attachment=None
         self.focus_until=0
         self.focus_job=None
+        self.nap_until=0
+        self.pet_state={'treats':0,'playtimes':0}
+        try:self.pet_state.update(json.loads((DATA/'pet_state.json').read_text()))
+        except (OSError,ValueError):pass
         self.hidden=False
         self.desktop_commands=queue.Queue()
         self.server_process=None
@@ -87,6 +91,10 @@ class Akkity:
         menu = tk.Menu(self.root, tearoff=False)
         menu.add_command(label='Chat with Akkity', command=self.chat)
         menu.add_command(label='Settings and old chats', command=self.settings)
+        menu.add_command(label='Give a virtual treat',command=lambda:self.care('treat'))
+        menu.add_command(label='Playtime',command=lambda:self.care('play'))
+        menu.add_command(label='Nap for 5 minutes',command=lambda:self.care('nap'))
+        menu.add_command(label='Wake up',command=lambda:self.care('wake'))
         menu.add_command(label='Close pet', command=self.quit)
         self.label.bind('<Button-3>', lambda e: menu.tk_popup(e.x_root,e.y_root))
         if os.environ.get('AKKITY_TEST')!='1':self.desktop=Desktop(self,BASE/'akkity.ico')
@@ -106,7 +114,7 @@ class Akkity:
         chatting=self.dialog is not None and self.dialog.winfo_exists() and self.dialog.state()=='normal'
         if self.action!='idle' and now>=self.action_until:
             self.set_action(self.special_queue.pop(0),1.0) if self.special_queue else self.set_action('idle',0)
-        paused=(chatting and self.config['pause_chat']) or now<self.focus_until
+        paused=(chatting and self.config['pause_chat']) or now<self.focus_until or now<self.nap_until
         if now>=self.next_action and self.action=='idle' and self.config['autonomous'] and not paused:
             self.set_action(random.choice(['right','left','stroll-right','stroll-left','trot-right','trot-left','jump','wave','waiting','review','working','failed']),random.uniform(.85,2.2))
             self.next_action=now+self.config['interval']
@@ -241,6 +249,9 @@ class Akkity:
         tools_button=tk.Menubutton(header,text='⋯',bg='#202020',fg='white',bd=0,font=('Segoe UI',12))
         tools_button.pack(side='right')
         tools_menu=tk.Menu(tools_button,tearoff=False);tools_button.configure(menu=tools_menu)
+        care_menu=tk.Menu(tools_menu,tearoff=False)
+        for title,action in [('Give a virtual treat','treat'),('Playtime','play'),('Nap for 5 minutes','nap'),('Wake up','wake')]:care_menu.add_command(label=title,command=lambda a=action:self.care(a))
+        tools_menu.add_cascade(label='Cat care ♡',menu=care_menu)
         for label,command in [('Attach local file…',self.attach_file),('Remove attachment',self.remove_attachment),('Summarize attached file',lambda:self.quick_prompt('Summarize the attached file in three short points.')),('Make a checklist',lambda:self.quick_prompt('Turn the latest topic or attached file into a short actionable checklist.')),('Explain simply',lambda:self.quick_prompt('Explain the latest topic or attached file in simple words.')),('Copy last reply',self.copy_reply),('Find in conversation',self.find_chat),('Export conversation…',self.export_chat),('Start new chat',self.new_chat),('Focus timer…',self.focus_timer),('Stop focus timer',self.stop_focus),('Close pet',self.quit)]:tools_menu.add_command(label=label,command=command)
         self.log=scrolledtext.ScrolledText(content,wrap='word',font=('Segoe UI',10),bg='#202020',fg='#ededed',state='disabled',bd=0,highlightthickness=0)
         self.log.configure(height=2,width=1,font=('Segoe UI',self.config['font']),padx=3,pady=3,spacing3=5)
@@ -362,12 +373,37 @@ class Akkity:
         if self.dialog and self.dialog.winfo_exists():self.append('AKKITY','Focus time is complete. Take a little break!')
         else:messagebox.showinfo('Akkity','Focus time is complete. Take a little break!',parent=self.root)
 
+    def care(self,action):
+        self.touch()
+        if action=='nap':
+            self.nap_until=time.monotonic()+300
+            self.special_queue=[];self.set_action('idle',0)
+            text='Quiet time for five minutes. I will stay right here. ♡'
+        elif action=='wake':
+            self.nap_until=0;self.gesture('wave');text='Awake and ready for a little mischief!'
+        elif action=='treat':
+            self.nap_until=0;self.pet_state['treats']+=1;self.gesture('wave')
+            text=f"A virtual treat for me? Purr-fect. ♡ Treats so far: {self.pet_state['treats']}"
+        else:
+            self.nap_until=0;self.pet_state['playtimes']+=1;self.gesture('special')
+            text='Playtime! One tiny jump for a cat, one big distraction for you.'
+        self.write_json('pet_state.json',self.pet_state)
+        if self.dialog and self.dialog.winfo_exists():
+            self.file_label.configure(text=text)
+
     def settings(self):
         if self.settings_window and self.settings_window.winfo_exists():self.settings_window.lift();return
         win=self.settings_window=tk.Toplevel(self.root);win.title('Akkity · Settings & chats');win.geometry('440x560');win.attributes('-topmost',True)
         notebook=ttk.Notebook(win);notebook.pack(fill='both',expand=True,padx=12,pady=12)
-        prefs=ttk.Frame(notebook,padding=12);history=ttk.Frame(notebook,padding=12)
-        notebook.add(prefs,text='Settings');notebook.add(history,text='Old chats')
+        prefs=ttk.Frame(notebook,padding=12);history=ttk.Frame(notebook,padding=12);care=ttk.Frame(notebook,padding=15)
+        notebook.add(prefs,text='Settings');notebook.add(history,text='Old chats');notebook.add(care,text='Cat care')
+        ttk.Label(care,text='A little care, a little company',font=('Segoe UI',13,'bold')).pack(anchor='w',pady=10)
+        stats=ttk.Label(care,text=f"Virtual treats: {self.pet_state['treats']}  ·  Playtimes: {self.pet_state['playtimes']}")
+        stats.pack(anchor='w',pady=10)
+        def care_action(action):
+            self.care(action);stats.configure(text=f"Virtual treats: {self.pet_state['treats']}  ·  Playtimes: {self.pet_state['playtimes']}")
+        for title,action in [('♡ Give a virtual treat','treat'),('✳ Start playtime','play'),('☾ Nap for 5 minutes','nap'),('☀ Wake up','wake')]:ttk.Button(care,text=title,command=lambda a=action:care_action(a)).pack(fill='x',pady=8)
+        ttk.Label(care,text='Nap pauses automatic antics for five minutes.\nTreat and play counters stay on this computer.\nCtrl+Alt+A brings your cat back after hiding.',wraplength=350).pack(anchor='w',pady=15)
         variables={}
         for row,(key,label,low,high) in enumerate([('interval','Random action interval (seconds)',1,60),('speed','Walking speed (pixels/second)',10,180),('frame_ms','Frame interval (ms)',60,220),('font','Chat font size',9,15),('bubble_width','Bubble width',260,480),('bubble_height','Bubble height',200,440)]):
             ttk.Label(prefs,text=label).grid(row=row,column=0,sticky='w',pady=7)

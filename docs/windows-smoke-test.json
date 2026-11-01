@@ -1,0 +1,14 @@
+{
+  "interpolated_motion": true,
+  "greeting": true,
+  "layout_260": true,
+  "layout_300": true,
+  "layout_480": true,
+  "offline_reply": true,
+  "reply_text": " warmly,\n\n2 + 2 = 4.\n",
+  "fresh_chat": true,
+  "hide": true,
+  "reopen": true,
+  "all_actions": true,
+  "passed": true
+}

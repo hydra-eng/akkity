@@ -9,6 +9,7 @@ models/
 *.log
 settings.json
 chats.json
+pet_state.json
 node_modules/
 .firebase/
 test-data/
