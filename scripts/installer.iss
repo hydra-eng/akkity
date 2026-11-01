@@ -1,7 +1,7 @@
 [Setup]
 AppId={{B4A07DA9-2434-4AE3-9F30-9FC694244F66}
 AppName=Akkity
-AppVersion=1.0.0
+AppVersion=1.0.1
 AppPublisher=Akkity
 AppPublisherURL=https://akkity.web.app
 DefaultDirName={localappdata}\Programs\Akkity

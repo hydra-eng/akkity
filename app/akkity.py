@@ -8,6 +8,8 @@ from datetime import datetime
 from tkinter import ttk, filedialog, simpledialog, messagebox
 from local_files import read_attachment
 from desktop import Desktop, single_instance
+from focus import FocusClock
+from focus_ui import FocusUI
 
 BASE = Path(__file__).resolve().parent
 INSTALL = Path(sys.executable).parent if getattr(sys,'frozen',False) else BASE
@@ -31,6 +33,9 @@ class Akkity:
         self.attachment=None
         self.focus_until=0
         self.focus_job=None
+        self.focus=FocusClock()
+        try:self.focus.restore(json.loads((DATA/'focus.json').read_text()))
+        except (OSError,ValueError,TypeError):pass
         self.nap_until=0
         self.pet_state={'treats':0,'playtimes':0}
         try:self.pet_state.update(json.loads((DATA/'pet_state.json').read_text()))
@@ -84,16 +89,16 @@ class Akkity:
         self.label.bind('<B1-Motion>', self.drag)
         self.label.bind('<ButtonRelease-1>', self.release)
         menu = tk.Menu(self.root, tearoff=False)
-        menu.add_command(label='Chat with Akkity', command=self.chat)
-        menu.add_command(label='Settings and old chats', command=self.settings)
-        menu.add_command(label='Give a virtual treat',command=lambda:self.care('treat'))
-        menu.add_command(label='Playtime',command=lambda:self.care('play'))
-        menu.add_command(label='Nap for 5 minutes',command=lambda:self.care('nap'))
-        menu.add_command(label='Wake up',command=lambda:self.care('wake'))
-        menu.add_command(label='Close pet', command=self.quit)
+        menu.add_command(label='Chat', command=self.chat)
+        menu.add_command(label='Settings', command=self.settings)
+        menu.add_command(label='Focus timer',command=self.open_focus)
+        menu.add_separator()
+        menu.add_command(label='Close pet · reopen from tray', command=self.quit)
         self.label.bind('<Button-3>', lambda e: menu.tk_popup(e.x_root,e.y_root))
         if os.environ.get('AKKITY_TEST')!='1':self.desktop=Desktop(self,BASE/'akkity.ico')
         self.root.protocol('WM_DELETE_WINDOW',self.quit)
+        self.focus_ui=FocusUI(self)
+        if self.focus.active:self.focus_ui.update()
         self.animate()
         self.poll()
         self.root.mainloop()
@@ -122,7 +127,8 @@ class Akkity:
         chatting=self.dialog is not None and self.dialog.winfo_exists() and self.dialog.state()=='normal'
         if self.action!='idle' and now>=self.action_until:
             self.set_action(self.special_queue.pop(0),1.0) if self.special_queue else self.set_action('idle',0)
-        paused=(chatting and self.config['pause_chat']) or now<self.focus_until or now<self.nap_until
+        self.focus_until=self.focus.deadline if self.focus.state=='running' else 0
+        paused=(chatting and self.config['pause_chat']) or self.focus.state=='running' or now<self.nap_until
         if now>=self.next_action and self.action=='idle' and self.config['autonomous'] and not paused:
             self.set_action(random.choice(['right','left','stroll-right','stroll-left','trot-right','trot-left','jump','wave','waiting','review','working','failed']),random.uniform(.85,2.2))
             self.next_action=now+self.config['interval']
@@ -237,30 +243,33 @@ class Akkity:
         shell=tk.Canvas(self.dialog,bg='#ff00ff',highlightthickness=0)
         shell.pack(fill='both',expand=True)
         w,h=self.config['bubble_width'],self.config['bubble_height']
-        bubble=Image.new('RGB',(w,h),'#ff00ff')
-        draw=ImageDraw.Draw(bubble)
-        draw.rounded_rectangle((1,1,w-9,h-26),radius=18,fill='#202020',outline='#777777',width=2)
-        draw.polygon([(w-58,h-28),(w-8,h-3),(w-30,h-29)],fill='#202020')
-        draw.line([(w-58,h-27),(w-8,h-3),(w-30,h-27)],fill='#777777',width=2)
-        self.bubble_image=ImageTk.PhotoImage(bubble)
-        shell.create_image(0,0,image=self.bubble_image,anchor='nw')
+        self.bubble_image=self.make_bubble(w,h)
+        self.bubble_canvas=shell
+        self.bubble_id=shell.create_image(0,0,image=self.bubble_image,anchor='nw')
         content=tk.Frame(shell,bg='#202020')
-        shell.create_window(13,12,window=content,anchor='nw',width=w-36,height=h-52)
+        self.bubble_content=shell
+        self.bubble_window=shell.create_window(13,12,window=content,anchor='nw',width=w-36,height=h-52)
         content.columnconfigure(0,weight=1)
         content.rowconfigure(1,weight=1)
         header=tk.Frame(content,bg='#202020')
         header.grid(row=0,column=0,sticky='ew')
-        tk.Label(header,text='Akkity',font=('Segoe UI',9),fg='#aaaaaa',bg='#202020').pack(side='left')
-        tk.Button(header,text='×',command=self.close_chat,bg='#202020',fg='#aaaaaa',bd=0,font=('Segoe UI',12)).pack(side='right')
-        tk.Button(header,text='Settings',command=self.settings,bg='#202020',fg='#aaaaaa',bd=0,font=('Segoe UI',8)).pack(side='right')
-        tk.Button(header,text='Close pet',command=self.quit,bg='#202020',fg='#d5aaa0',bd=0,font=('Segoe UI',8)).pack(side='right')
-        tools_button=tk.Menubutton(header,text='⋯',bg='#202020',fg='white',bd=0,font=('Segoe UI',12))
+        tk.Label(header,text='Akkity',font=('Segoe UI',10,'bold'),fg='#eeeeee',bg='#202020').pack(side='left')
+        self.settings_button=tk.Button(header,text='⚙ Settings',command=self.settings,bg='#303030',fg='#dddddd',bd=0,font=('Segoe UI',9),padx=7)
+        self.settings_button.pack(side='right',padx=(3,0))
+        tk.Button(header,text='×',command=self.close_chat,bg='#202020',fg='#aaaaaa',bd=0,font=('Segoe UI',13),padx=4).pack(side='right')
+        self.focus_button=tk.Button(header,text='Focus',command=self.open_focus,bg='#303030',fg='#cfeda9',bd=0,font=('Segoe UI',9),padx=7)
+        self.focus_button.pack(side='right',padx=(3,0))
+        tools_button=tk.Menubutton(header,text='•••',bg='#202020',fg='#eeeeee',bd=0,font=('Segoe UI',9),padx=6)
         tools_button.pack(side='right')
         tools_menu=tk.Menu(tools_button,tearoff=False);tools_button.configure(menu=tools_menu)
-        care_menu=tk.Menu(tools_menu,tearoff=False)
-        for title,action in [('Give a virtual treat','treat'),('Playtime','play'),('Nap for 5 minutes','nap'),('Wake up','wake')]:care_menu.add_command(label=title,command=lambda a=action:self.care(a))
-        tools_menu.add_cascade(label='Cat care ♡',menu=care_menu)
-        for label,command in [('Attach local file…',self.attach_file),('Remove attachment',self.remove_attachment),('Summarize attached file',lambda:self.quick_prompt('Summarize the attached file in three short points.')),('Make a checklist',lambda:self.quick_prompt('Turn the latest topic or attached file into a short actionable checklist.')),('Explain simply',lambda:self.quick_prompt('Explain the latest topic or attached file in simple words.')),('Copy last reply',self.copy_reply),('Find in conversation',self.find_chat),('Export conversation…',self.export_chat),('Start new chat',self.new_chat),('Focus timer…',self.focus_timer),('Stop focus timer',self.stop_focus),('Close pet',self.quit)]:tools_menu.add_command(label=label,command=command)
+        tools_menu.add_command(label='New chat',command=self.new_chat)
+        tools_menu.add_command(label='Search this chat',command=self.find_chat)
+        tools_menu.add_command(label='Copy latest reply',command=self.copy_reply)
+        tools_menu.add_command(label='Export chat…',command=self.export_chat)
+        tools_menu.add_separator()
+        tools_menu.add_command(label='Virtual treat',command=lambda:self.care('treat'))
+        tools_menu.add_command(label='Playtime',command=lambda:self.care('play'))
+        tools_menu.add_command(label='Close pet · reopen from tray',command=self.quit)
         self.log=scrolledtext.ScrolledText(content,wrap='word',font=('Segoe UI',10),bg='#202020',fg='#ededed',state='disabled',bd=0,highlightthickness=0)
         self.log.configure(height=2,width=1,font=('Segoe UI',self.config['font']),padx=3,pady=3,spacing3=5)
         self.log.grid(row=1,column=0,sticky='nsew',pady=5)
@@ -269,19 +278,30 @@ class Akkity:
             self.append('You' if message['role']=='user' else 'AKKITY',message.get('display',message['content']))
         composer=tk.Frame(content,bg='#303030',highlightbackground='#484848',highlightthickness=1)
         composer.grid(row=2,column=0,sticky='ew',pady=(3,0))
-        composer.columnconfigure(0,weight=1)
+        self.attach_button=tk.Button(composer,text='＋ File',command=self.attach_file,bg='#303030',fg='#ededed',bd=0,font=('Segoe UI',9),padx=5,relief='flat')
+        self.attach_button.grid(row=0,column=0,sticky='w',padx=(3,0),pady=3)
         self.entry=tk.Entry(composer,font=('Segoe UI',11),bg='#303030',fg='white',insertbackground='white',bd=0)
         self.entry.configure(width=1,font=('Segoe UI',self.config['font']))
-        self.entry.grid(row=0,column=0,sticky='ew',padx=6,pady=7)
+        composer.columnconfigure(1,weight=1)
+        self.entry.grid(row=0,column=1,sticky='ew',padx=4,pady=7)
         self.entry.insert(0,'Type here')
         self.entry.bind('<FocusIn>',lambda e:self.entry.delete(0,'end') if self.entry.get()=='Type here' else None)
         self.entry.bind('<Return>',lambda e:self.send())
         self.button=tk.Button(composer,text='Thinking…' if self.pending else '↑',state='disabled' if self.pending else 'normal',command=self.send,bg='#e5e5e5',fg='#111111',bd=0,padx=10)
-        self.button.grid(row=0,column=1,padx=5,pady=4)
-        self.file_label=tk.Label(composer,text='',bg='#303030',fg='#b9cfb3',font=('Segoe UI',8),anchor='w',wraplength=w-65)
-        self.file_label.grid(row=1,column=0,columnspan=2,sticky='ew')
+        self.button.grid(row=0,column=2,padx=5,pady=4)
+        self.file_label=tk.Label(composer,text='',bg='#303030',fg='#b9cfb3',font=('Segoe UI',8),anchor='w',wraplength=w-115)
+        self.file_label.grid(row=1,column=0,columnspan=2,sticky='ew',padx=5)
+        self.remove_file_button=tk.Button(composer,text='×',command=self.remove_attachment,bg='#303030',fg='#aaaaaa',bd=0,font=('Segoe UI',10))
+        self.remove_file_button.grid(row=1,column=2,sticky='e',padx=4)
+        self.remove_file_button.grid_remove()
+        self.resize_handle=tk.Label(shell,text='◢',bg='#202020',fg='#9a9a9a',cursor='size_nw_se',font=('Segoe UI',10))
+        self.resize_id=shell.create_window(w-20,h-36,window=self.resize_handle,anchor='center')
+        self.resize_handle.bind('<ButtonPress-1>',self.resize_start)
+        self.resize_handle.bind('<B1-Motion>',self.resize_drag)
+        self.resize_handle.bind('<ButtonRelease-1>',self.resize_end)
         self.dialog.bind('<Control-o>',lambda e:self.attach_file())
         self.dialog.bind('<Control-f>',lambda e:self.find_chat())
+        self.dialog.bind('<Control-comma>',lambda e:self.settings())
         self.dialog.bind('<Escape>',lambda e:self.close_chat())
         self.dialog.bind('<KeyPress>',lambda e:self.touch())
 
@@ -317,6 +337,8 @@ class Akkity:
 
     def exit_app(self):
         self.save_chat()
+        if self.focus.state=='running':self.focus.pause()
+        self.focus_ui.save()
         if self.desktop:self.desktop.stop()
         if self.server_process and self.server_process.poll() is None:
             self.server_process.terminate()
@@ -329,16 +351,65 @@ class Akkity:
 
     def attach_file(self):
         if self.pending:return
-        filename=filedialog.askopenfilename(parent=self.dialog,title='Attach a local text file',filetypes=[('Readable files','*.txt *.md *.csv *.tsv *.json *.log *.py *.js *.ts *.html *.css *.yaml *.yml *.xml *.docx *.pdf'),('All files','*.*')])
+        self.touch()
+        if self.dialog and self.dialog.winfo_exists():
+            self.dialog.attributes('-topmost',False)
+        self.root.attributes('-topmost',False)
+        try:
+            filename=filedialog.askopenfilename(title='Choose a local file for Akkity',parent=self.dialog,filetypes=[('Readable text, code and documents','*.txt *.md *.csv *.tsv *.json *.log *.py *.js *.ts *.html *.css *.yaml *.yml *.xml *.docx *.pdf'),('All files','*.*')])
+        except Exception as error:
+            if self.dialog and self.dialog.winfo_exists():
+                messagebox.showerror('Could not open the file picker',f'{error}\n\nTry Ctrl+O or the paperclip again.',parent=self.dialog)
+            return
+        finally:
+            if self.root.winfo_exists():self.root.attributes('-topmost',True)
+            if self.dialog and self.dialog.winfo_exists():
+                self.dialog.attributes('-topmost',True)
+                self.dialog.lift()
         if not filename:return
         try:
             self.attachment=read_attachment(filename)
             self.file_label.configure(text='Attached: '+self.attachment['name']+(' (excerpt)' if self.attachment['truncated'] else ''))
+            self.remove_file_button.grid()
+            self.entry.focus_set()
         except Exception as error:messagebox.showerror('Cannot attach file',str(error),parent=self.dialog)
+
+    def resize_start(self,event):
+        self.resize_origin=(event.x_root,event.y_root,self.config['bubble_width'],self.config['bubble_height'])
+
+    def resize_drag(self,event):
+        if not hasattr(self,'resize_origin'):return
+        sx,sy,sw,sh=self.resize_origin
+        w=max(260,min(480,sw+event.x_root-sx));h=max(200,min(440,sh+event.y_root-sy))
+        self.config['bubble_width']=w;self.config['bubble_height']=h
+        self.dialog.geometry(f'{w}x{h}+{self.dialog.winfo_x()}+{self.dialog.winfo_y()}')
+        self.bubble_image=self.make_bubble(w,h)
+        self.bubble_canvas.itemconfigure(self.bubble_id,image=self.bubble_image)
+        self.bubble_content.itemconfigure(self.bubble_window,width=w-36,height=h-52)
+        self.bubble_canvas.coords(self.resize_id,w-20,h-36)
+        self.file_label.configure(wraplength=w-115)
+        self.resize_handle.configure(text=f'◢ {w}×{h}')
+        self.position_chat()
+
+    def resize_end(self,event):
+        if hasattr(self,'resize_origin'):del self.resize_origin
+        self.write_json('settings.json',self.config)
+
+    def make_bubble(self,w,h):
+        bubble=Image.new('RGB',(w,h),'#ff00ff');draw=ImageDraw.Draw(bubble)
+        draw.rounded_rectangle((1,1,w-9,h-26),radius=18,fill='#202020',outline='#777777',width=2)
+        draw.polygon([(w-58,h-28),(w-8,h-3),(w-30,h-29)],fill='#202020')
+        draw.line([(w-58,h-27),(w-8,h-3),(w-30,h-27)],fill='#777777',width=2)
+        return ImageTk.PhotoImage(bubble)
+
+    def open_focus(self):
+        self.focus_ui.open()
 
     def remove_attachment(self):
         self.attachment=None
-        self.file_label.configure(text='')
+        if self.dialog and self.dialog.winfo_exists() and hasattr(self,'file_label'):
+            self.file_label.configure(text='')
+            self.remove_file_button.grid_remove()
 
     def quick_prompt(self,text):
         if self.pending:return
@@ -369,20 +440,13 @@ class Akkity:
             self.file_label.configure(text='Conversation exported.')
 
     def focus_timer(self):
-        minutes=simpledialog.askinteger('Focus with Akkity','Minutes (1–120):',parent=self.dialog,minvalue=1,maxvalue=120,initialvalue=25)
-        if not minutes:return
-        self.stop_focus();self.focus_until=time.monotonic()+minutes*60;self.set_action('idle',0)
-        self.file_label.configure(text=f'Focus time: {minutes} minutes. Wandering paused.')
-        self.focus_job=self.root.after(minutes*60000,self.focus_done)
+        self.open_focus()
 
     def stop_focus(self):
-        if self.focus_job:self.root.after_cancel(self.focus_job)
-        self.focus_job=None;self.focus_until=0
+        self.focus_ui.stop()
 
     def focus_done(self):
-        self.focus_job=None;self.focus_until=0;self.gesture('special')
-        if self.dialog and self.dialog.winfo_exists():self.append('AKKITY','Focus time is complete. Take a little break!')
-        else:messagebox.showinfo('Akkity','Focus time is complete. Take a little break!',parent=self.root)
+        self.open_focus()
 
     def care(self,action):
         self.touch()

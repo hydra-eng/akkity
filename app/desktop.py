@@ -19,6 +19,10 @@ class Desktop:
         self.thread_id=None
         threading.Thread(target=self.hotkey,daemon=True).start()
 
+    def notify(self,message,title='Akkity'):
+        try:self.icon.notify(message,title)
+        except Exception:pass
+
     def hotkey(self):
         self.thread_id=ctypes.windll.kernel32.GetCurrentThreadId()
         user32=ctypes.windll.user32
