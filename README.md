@@ -18,7 +18,7 @@ Akkity is a small black cat that walks, jumps, waves, and chats beside your work
 | Desktop companion | Transparent, always-on-top pet that can be dragged across your screen |
 | Comic chat | Compact adjacent speech bubble; greeting is part of the conversation |
 | File context | Text, code, CSV, DOCX and text PDFs, extracted locally |
-| Bubble sizing | Drag the visible lower-right grip; Settings also offers exact width and height |
+| Bubble sizing | Drag the visible grip on any edge to change width or height; Settings also offers exact dimensions |
 | Chat tools | Summarize, explain, checklist, search, copy, export and saved history |
 | Focus timer | Name the task, choose a duration, pause/resume or extend it, and watch a countdown beside the cat |
 | Cat care | Virtual treats, playtime, a five-minute quiet nap and local care counters |

@@ -55,11 +55,32 @@ def run(report_path):
             checks['fresh_chat']=len(a.messages)==2
             position=(a.dialog.winfo_x(),a.dialog.winfo_y())
             event=type('ResizeEvent',(),{'x_root':10,'y_root':10})()
-            a.resize_start(event)
-            event=type('ResizeEvent',(),{'x_root':30,'y_root':55})()
-            a.resize_drag(event);a.resize_end(event);a.root.update()
-            checks['resize']=a.config['bubble_width']==320 and a.config['bubble_height']==285 and a.resize_handle.winfo_width()>=24
-            checks['resize_drag_anchor']=tuple(map(int,a.bubble_canvas.coords(a.resize_id)))==(300,247) and (a.dialog.winfo_x(),a.dialog.winfo_y())==position
+            a.resize_start(event,'e')
+            event=type('ResizeEvent',(),{'x_root':30,'y_root':10})()
+            a.resize_drag(event);a.root.update();checks['resize_east']=a.config['bubble_width']==320 and a.config['bubble_height']==240 and a.dialog.winfo_x()==position[0]
+            a.resize_end(event);a.root.update()
+            position=(a.dialog.winfo_x(),a.dialog.winfo_y())
+            event=type('ResizeEvent',(),{'x_root':10,'y_root':10})()
+            a.resize_start(event,'s')
+            event=type('ResizeEvent',(),{'x_root':10,'y_root':55})()
+            a.resize_drag(event);a.root.update();checks['resize_south']=a.config['bubble_width']==320 and a.config['bubble_height']==285 and a.dialog.winfo_y()==position[1]
+            checks['resize_grips']=all(handle.winfo_width()>=15 for handle in a.resize_handles.values())
+            a.resize_end(event);a.root.update()
+            position=(a.dialog.winfo_x(),a.dialog.winfo_y())
+            event=type('ResizeEvent',(),{'x_root':30,'y_root':10})()
+            a.resize_start(event,'w')
+            event=type('ResizeEvent',(),{'x_root':10,'y_root':10})()
+            a.resize_drag(event);a.root.update();checks['resize_west']=a.config['bubble_width']==340 and a.dialog.winfo_x()+a.config['bubble_width']==position[0]+320
+            if not checks['resize_west']:checks['resize_west_debug']=[position,a.dialog.winfo_x(),a.config['bubble_width']]
+            a.resize_end(event);a.root.update()
+            position=(a.dialog.winfo_x(),a.dialog.winfo_y())
+            event=type('ResizeEvent',(),{'x_root':10,'y_root':25})()
+            a.resize_start(event,'n')
+            event=type('ResizeEvent',(),{'x_root':10,'y_root':10})()
+            a.resize_drag(event);a.root.update();checks['resize_north']=a.config['bubble_height']==300 and a.dialog.winfo_y()+a.config['bubble_height']==position[1]+285
+            if not checks['resize_north']:checks['resize_north_debug']=[position,a.dialog.winfo_y(),a.config['bubble_height']]
+            checks['resize']=all(checks[k] for k in ('resize_east','resize_south','resize_west','resize_north','resize_grips'))
+            a.resize_end(event);a.root.update()
             a.close_chat()
             a.focus_ui.start(1,'Test focus')
             a.focus_ui.toggle();checks['focus_pause']=a.focus.state=='paused' and a.focus.task=='Test focus'

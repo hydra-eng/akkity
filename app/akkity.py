@@ -193,8 +193,8 @@ class Akkity:
 
     def position_chat(self):
         w,h=self.config['bubble_width'],self.config['bubble_height']
-        x=max(8,min(self.root.winfo_x()-w+40,self.root.winfo_screenwidth()-w-8))
-        y=max(8,min(self.root.winfo_y()-h+75,self.root.winfo_screenheight()-h-8))
+        x=max(8,min(self.root.winfo_x()-w+1,self.root.winfo_screenwidth()-w-8))
+        y=max(8,min(self.root.winfo_y()-h+15,self.root.winfo_screenheight()-h-8))
         self.dialog.geometry(f'{w}x{h}+{x}+{y}')
 
     def release(self, e):
@@ -248,7 +248,7 @@ class Akkity:
         self.bubble_id=shell.create_image(0,0,image=self.bubble_image,anchor='nw')
         content=tk.Frame(shell,bg='#202020')
         self.bubble_content=shell
-        self.bubble_window=shell.create_window(13,12,window=content,anchor='nw',width=w-68,height=h-66)
+        self.bubble_window=shell.create_window(28,22,window=content,anchor='nw',width=w-83,height=h-76)
         content.columnconfigure(0,weight=1)
         content.rowconfigure(1,weight=1)
         header=tk.Frame(content,bg='#202020')
@@ -294,11 +294,22 @@ class Akkity:
         self.remove_file_button=tk.Button(composer,text='×',command=self.remove_attachment,bg='#303030',fg='#aaaaaa',bd=0,font=('Segoe UI',10))
         self.remove_file_button.grid(row=1,column=2,sticky='e',padx=4)
         self.remove_file_button.grid_remove()
-        self.resize_handle=tk.Label(shell,text='◢',bg='#35442e',fg='#d8f2ad',cursor='size_nw_se',font=('Segoe UI',13,'bold'),width=3,height=1)
-        self.resize_id=shell.create_window(w-20,h-38,window=self.resize_handle,anchor='center')
-        self.resize_handle.bind('<ButtonPress-1>',self.resize_start)
-        self.resize_handle.bind('<B1-Motion>',self.resize_drag)
-        self.resize_handle.bind('<ButtonRelease-1>',self.resize_end)
+        self.resize_handles={}
+        self.resize_ids={}
+        for edge,(symbol,cursor,x,y) in {
+            'w':('↔','sb_h_double_arrow',12,h//2),
+            'e':('↔','sb_h_double_arrow',w-16,h//2),
+            'n':('↕','sb_v_double_arrow',w//2,9),
+            's':('↕','sb_v_double_arrow',w//2,h-37),
+        }.items():
+            handle=tk.Label(shell,text=symbol,bg='#35442e',fg='#d8f2ad',cursor=cursor,font=('Segoe UI Symbol',10,'bold'),width=2,height=1)
+            self.resize_handles[edge]=handle
+            self.resize_ids[edge]=shell.create_window(x,y,window=handle,anchor='center')
+            handle.bind('<ButtonPress-1>',lambda event,direction=edge:self.resize_start(event,direction))
+        self.resize_handle=self.resize_handles['s']
+        for handle in self.resize_handles.values():
+            handle.bind('<B1-Motion>',self.resize_drag)
+            handle.bind('<ButtonRelease-1>',self.resize_end)
         self.dialog.bind('<B1-Motion>',self.resize_drag,add='+')
         self.dialog.bind('<ButtonRelease-1>',self.resize_end,add='+')
         self.dialog.bind('<Control-o>',lambda e:self.attach_file())
@@ -376,25 +387,33 @@ class Akkity:
             self.entry.focus_set()
         except Exception as error:messagebox.showerror('Cannot attach file',str(error),parent=self.dialog)
 
-    def resize_start(self,event):
-        self.resize_origin=(event.x_root,event.y_root,self.config['bubble_width'],self.config['bubble_height'])
+    def resize_start(self,event,edges='se'):
+        self.resize_origin=(event.x_root,event.y_root,self.config['bubble_width'],self.config['bubble_height'],self.dialog.winfo_x(),self.dialog.winfo_y(),edges)
 
     def resize_drag(self,event):
         if not hasattr(self,'resize_origin'):return
-        sx,sy,sw,sh=self.resize_origin
-        w=max(260,min(480,sw+event.x_root-sx));h=max(200,min(440,sh+event.y_root-sy))
+        sx,sy,sw,sh,ox,oy,edges=self.resize_origin
+        dx,dy=event.x_root-sx,event.y_root-sy
+        w=max(260,min(480,sw+dx if 'e' in edges else sw-dx if 'w' in edges else sw))
+        h=max(200,min(440,sh+dy if 's' in edges else sh-dy if 'n' in edges else sh))
+        x=ox+sw-w if 'w' in edges else ox
+        y=oy+sh-h if 'n' in edges else oy
         self.config['bubble_width']=w;self.config['bubble_height']=h
-        self.dialog.geometry(f'{w}x{h}+{self.dialog.winfo_x()}+{self.dialog.winfo_y()}')
+        self.dialog.geometry(f'{w}x{h}+{x}+{y}')
         self.bubble_image=self.make_bubble(w,h)
         self.bubble_canvas.itemconfigure(self.bubble_id,image=self.bubble_image)
-        self.bubble_content.itemconfigure(self.bubble_window,width=w-68,height=h-66)
-        self.bubble_canvas.coords(self.resize_id,w-20,h-38)
+        self.bubble_content.itemconfigure(self.bubble_window,width=w-83,height=h-76)
+        self.bubble_canvas.coords(self.resize_ids['w'],12,h//2)
+        self.bubble_canvas.coords(self.resize_ids['e'],w-16,h//2)
+        self.bubble_canvas.coords(self.resize_ids['n'],w//2,9)
+        self.bubble_canvas.coords(self.resize_ids['s'],w//2,h-37)
         self.file_label.configure(wraplength=w-115)
 
     def resize_end(self,event):
         if not hasattr(self,'resize_origin'):return
         del self.resize_origin
         self.write_json('settings.json',self.config)
+        self.position_chat()
 
     def make_bubble(self,w,h):
         bubble=Image.new('RGB',(w,h),'#ff00ff');draw=ImageDraw.Draw(bubble)
