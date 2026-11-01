@@ -26,13 +26,23 @@ def run(report_path):
             checks['greeting']=a.log.get('1.0','end').strip()=='AKKITY: enti papa'
             checks['visible_settings']=a.settings_button.winfo_ismapped()
             checks['visible_file_button']=a.attach_button.winfo_ismapped()
+            a.config['user_name']='Maya';a.system_message={'role':'system','content':a.make_system_message()};a.messages[0]=dict(a.system_message)
+            a.reply_count=0;styled=a.stylize_reply('Hello there! Hippo! I can help, okay?')
+            checks['reply_style']=styled=='Helo, Maya! I can help, vokey?'
+            a.reply_count=2;checks['occasional_oye']=a.stylize_reply('Vokey!')=='Oye, Vokey!'
+            a.entry.delete(0,'end');a.entry.insert(0,'hello');a.send()
+            deadline=time.monotonic()+10
+            while a.pending and time.monotonic()<deadline:a.root.update();time.sleep(.02)
+            checks['named_greeting_reply']=a.messages[-1]['content']=='Helo, Maya!'
+            a.close_chat();a.chat();a.root.update()
+            checks['greeting_stays_enti_papa']=a.log.get('1.0','end').strip()=='AKKITY: enti papa'
             with tempfile.TemporaryDirectory(prefix='akkity-file-test-') as file_temp:
                 sample=Path(file_temp)/'notes.txt';sample.write_text('The project codename is Moonberry.',encoding='utf-8')
                 with patch.object(app_module.filedialog,'askopenfilename',return_value=str(sample)) as chooser:
                     a.attach_file()
                 checks['file_picker']=chooser.call_count==1 and a.attachment and a.attachment['name']=='notes.txt'
                 checks['attachment_visible']='notes.txt' in a.file_label.cget('text')
-                a.entry.delete(0,'end');a.entry.insert(0,'What is the project codename in the file?')
+                a.entry.delete(0,'end');a.entry.insert(0,"Read the attached file. What exact word comes after 'project codename is'? Reply with only that word.")
                 a.send()
                 deadline=time.monotonic()+120
                 while a.pending and time.monotonic()<deadline:a.root.update();time.sleep(.02)

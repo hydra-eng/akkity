@@ -11,12 +11,16 @@ Akkity is a small black cat that walks, jumps, waves, and chats beside your work
 
 **Download:** open [Akkity's website](https://akkity.web.app), download `Akkity-Setup.exe`, accept the bundled model terms, and install. The installer creates Start menu and desktop shortcuts and can launch Akkity immediately.
 
+On a first install, a colorful setup page lets each person enter a preferred name, turn animations and idle antics on or off, and choose double- and triple-tap moves. The name stays on the computer; when left blank, Akkity won't invent a name.
+
 | Feature | Behavior |
 | --- | --- |
 | Offline chat | Gemma 3 1B runs on your CPU through a loopback-only inference server |
 | Smooth motion | Six optical-flow subframes per original pose interval; time-based playback and eased walking |
 | Desktop companion | Transparent, always-on-top pet that can be dragged across your screen |
 | Comic chat | Compact adjacent speech bubble; greeting is part of the conversation |
+| Personalized voice | Opens with **AKKITY: enti papa**; replies use “helo”, “vokey”, and occasional “oye” |
+| Motion choices | Installer and Settings control all animations, idle antics, and double/triple-tap actions |
 | File context | Text, code, CSV, DOCX and text PDFs, extracted locally |
 | Bubble sizing | Drag the visible grip on any edge to change width or height; Settings also offers exact dimensions |
 | Chat tools | Summarize, explain, checklist, search, copy, export and saved history |
