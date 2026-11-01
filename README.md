@@ -3,6 +3,8 @@
 <p align="center"><strong>Tiny cat. Big desktop energy.</strong><br>A Windows desktop companion with a bundled offline AI brain.</p>
 <p align="center"><a href="https://akkity.web.app">Website</a> · <a href="https://github.com/hydra-eng/akkity/releases/latest">Download for Windows</a> · <a href="#how-it-works">Architecture</a> · <a href="#development">Development</a></p>
 
+![Akkity website preview](docs/website.png)
+
 ## Meet your desktop roommate
 
 Akkity is a small black cat that walks, jumps, waves, and chats beside your work. The Windows installer includes the Python runtime, CPU inference engine, and Gemma 3 1B model. You do not need an account, API key, Python installation, or a separate model download.
@@ -173,6 +175,8 @@ The website links to the GitHub release asset, keeping the large offline install
 ## Validation
 
 `python scripts/test_files.py` checks text truncation, DOCX/PDF extraction, size limits and unsupported formats. A packaged app can be checked with `Akkity.exe --self-test C:\path\to\report.json`: it uses temporary chat data, checks animation availability and bubble layouts, sends a real arithmetic question to local Gemma, and verifies new-chat, hide and reopen behavior. It never uses personal chat history.
+
+With other Akkity instances closed, `python scripts/test_recovery.py` starts an isolated local server, deliberately stops it, and verifies that a new message restarts the server and receives a real answer. The app also waits for its owned server to stop on complete exit, preventing rapid-restart races.
 
 The initial Windows build passed these checks. The website was checked at desktop and phone widths, including care actions, animated previews and the bubble demo. Testing was performed on Windows 11; Windows 10 compatibility is intended but has not been independently tested on a second machine.
 

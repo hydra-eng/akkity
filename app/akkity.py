@@ -38,6 +38,7 @@ class Akkity:
         self.hidden=False
         self.desktop_commands=queue.Queue()
         self.server_process=None
+        self.server_lock=threading.Lock()
         self.desktop=None
         self.instance_event=None
         self.root = tk.Tk()
@@ -47,13 +48,7 @@ class Akkity:
         self.root.configure(bg='#ff00ff')
         self.root.wm_attributes('-transparentcolor', '#ff00ff')
         self.root.geometry(f'192x208+{max(0,self.root.winfo_screenwidth()-250)}+{max(0,self.root.winfo_screenheight()-300)}')
-        server = INSTALL / 'runtime' / 'lib' / 'ollama' / 'llama-server.exe'
-        model = INSTALL / 'models' / 'blobs' / 'sha256-2f8c3d137f2496dcb4019e17a50f2974b89c1be1a742db3c80cc86f91cafeeef'
-        if server.exists() and model.exists():
-            try:
-                urllib.request.urlopen('http://127.0.0.1:11435/health',timeout=1).close()
-            except Exception:
-                self.server_process=subprocess.Popen([str(server),'-m',str(model),'--host','127.0.0.1','--port','11435','-c','4096','-t',str(min(4,os.cpu_count() or 2)),'--alias','gemma3:1b'],creationflags=subprocess.CREATE_NO_WINDOW,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        self.ensure_server()
         self.label = tk.Label(self.root, bg='#ff00ff', bd=0)
         self.label.pack()
         atlas = Image.open(BASE / 'spritesheet.png').convert('RGBA')
@@ -102,6 +97,19 @@ class Akkity:
         self.animate()
         self.poll()
         self.root.mainloop()
+
+    def ensure_server(self):
+        server=INSTALL/'runtime'/'lib'/'ollama'/'llama-server.exe'
+        model=INSTALL/'models'/'blobs'/'sha256-2f8c3d137f2496dcb4019e17a50f2974b89c1be1a742db3c80cc86f91cafeeef'
+        with self.server_lock:
+            try:
+                urllib.request.urlopen('http://127.0.0.1:11435/health',timeout=1).close()
+                return True
+            except (OSError,ValueError):pass
+            if self.server_process and self.server_process.poll() is None:return False
+            if not server.exists() or not model.exists():return False
+            self.server_process=subprocess.Popen([str(server),'-m',str(model),'--host','127.0.0.1','--port','11435','-c','4096','-t',str(min(4,os.cpu_count() or 2)),'--alias','gemma3:1b'],creationflags=subprocess.CREATE_NO_WINDOW,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            return False
 
     def animate(self):
         now=time.monotonic()
@@ -310,7 +318,10 @@ class Akkity:
     def exit_app(self):
         self.save_chat()
         if self.desktop:self.desktop.stop()
-        if self.server_process and self.server_process.poll() is None:self.server_process.terminate()
+        if self.server_process and self.server_process.poll() is None:
+            self.server_process.terminate()
+            try:self.server_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:self.server_process.kill()
         self.root.destroy()
 
     def new_chat(self):
@@ -460,6 +471,7 @@ class Akkity:
         def result(ok,text):self.queue.put((session_id,ok,text))
         try:
             for attempt in range(40):
+                if attempt%10==0:self.ensure_server()
                 try:
                     with urllib.request.urlopen('http://127.0.0.1:11435/health',timeout=1) as health:
                         if json.load(health).get('status')=='ok':break
